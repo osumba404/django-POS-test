@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Django POS Payments{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <header class="bg-white border-b">
+    <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+      <a href="/" class="font-semibold">Django POS Payments</a>
+      <nav class="space-x-4 text-sm">
+        <a class="text-blue-600 hover:underline" href="/payments/mpesa/initiate/">M-Pesa STK</a>
+        <a class="text-gray-500" href="#">Stripe (soon)</a>
+        <a class="text-gray-500" href="#">PayPal (soon)</a>
+        <a class="text-gray-500" href="#">Amazon Pay (soon)</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-t py-6 text-center text-sm text-gray-500">
+    Payments demo • M-Pesa STK implemented • Others coming soon
+  </footer>
+</body>
+</html>

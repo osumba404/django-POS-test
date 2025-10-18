@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Home · Django POS Payments{% endblock %}
+{% block content %}
+  <section class="space-y-4">
+    <h1 class="text-2xl font-semibold">Welcome</h1>
+    <p class="text-gray-600">This is a demo Django POS Payments app with M-Pesa (Daraja) STK Push implemented.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <a href="/payments/mpesa/initiate/" class="p-4 bg-white border rounded hover:shadow">
+        <div class="font-medium">M-Pesa STK Push</div>
+        <div class="text-sm text-gray-600">Initiate a payment request to a phone number.</div>
+      </a>
+      <a href="#" class="p-4 bg-white border rounded text-gray-400 cursor-not-allowed">
+        <div class="font-medium">Stripe (coming soon)</div>
+        <div class="text-sm">Placeholder</div>
+      </a>
+      <a href="#" class="p-4 bg-white border rounded text-gray-400 cursor-not-allowed">
+        <div class="font-medium">PayPal (coming soon)</div>
+        <div class="text-sm">Placeholder</div>
+      </a>
+      <a href="#" class="p-4 bg-white border rounded text-gray-400 cursor-not-allowed">
+        <div class="font-medium">Amazon Pay (coming soon)</div>
+        <div class="text-sm">Placeholder</div>
+      </a>
+    </div>
+  </section>
+{% endblock %}

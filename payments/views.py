@@ -1,27 +1,32 @@
 import json
 from django.http import JsonResponse, HttpResponseBadRequest
-from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.views.decorators.csrf import csrf_exempt
+from django.shortcuts import render
 from django.conf import settings
 from .models import Payment
 from .services.mpesa import MpesaDarajaClient
 
-@require_POST
-def initiate_mpesa_stk(request):
-    try:
-        data = json.loads(request.body.decode('utf-8'))
-    except Exception:
-        return HttpResponseBadRequest('Invalid JSON')
+@require_http_methods(["GET", "POST"])
+def mpesa_initiate(request):
+    if request.method == "GET":
+        return render(request, "payments/mpesa_initiate.html")
 
-    amount = data.get('amount')
-    phone = data.get('phone')
+    # POST: process form submission
+    amount = request.POST.get('amount')
+    phone = request.POST.get('phone')
     if not amount or not phone:
-        return HttpResponseBadRequest('amount and phone are required')
+        return render(request, "payments/mpesa_initiate.html", {"error": "amount and phone are required"})
+
+    try:
+        amount_val = float(amount)
+    except ValueError:
+        return render(request, "payments/mpesa_initiate.html", {"error": "amount must be a number"})
 
     payment = Payment.objects.create(
         provider=Payment.Provider.MPESA,
         phone_number=str(phone),
-        amount=amount,
+        amount=amount_val,
         status=Payment.Status.PROCESSING,
     )
 
@@ -36,29 +41,31 @@ def initiate_mpesa_stk(request):
         transaction_desc=getattr(settings, 'MPESA_TRANSACTION_DESC', 'Payment'),
     )
 
+    context = {"payment": payment, "result": None, "error": None}
     try:
-        resp = client.stk_push(phone=str(phone), amount=float(amount))
+        resp = client.stk_push(phone=str(phone), amount=amount_val)
         payment.merchant_request_id = resp.get('MerchantRequestID')
         payment.checkout_request_id = resp.get('CheckoutRequestID')
-        # On immediate error, API returns errorCode/errorMessage
         if 'errorCode' in resp:
             payment.status = Payment.Status.FAILED
             payment.result_code = resp.get('errorCode')
             payment.result_desc = resp.get('errorMessage')
         payment.save()
-        return JsonResponse({
+        context["result"] = json.dumps({
             'payment_id': str(payment.id),
             'provider': payment.provider,
             'status': payment.status,
             'merchant_request_id': payment.merchant_request_id,
             'checkout_request_id': payment.checkout_request_id,
             'raw': resp,
-        })
+        }, indent=2)
     except Exception as e:
         payment.status = Payment.Status.FAILED
         payment.result_desc = str(e)
         payment.save()
-        return JsonResponse({'error': str(e)}, status=500)
+        context["error"] = str(e)
+
+    return render(request, "payments/mpesa_initiate.html", context)
 
 @csrf_exempt
 @require_POST
@@ -79,7 +86,6 @@ def mpesa_callback(request):
               Payment.objects.filter(merchant_request_id=merchant_request_id).first()
 
     if not payment:
-        # Unknown callback, accept but note
         return JsonResponse({'status': 'ignored'})
 
     payment.raw_callback = payload
@@ -99,16 +105,6 @@ def payment_status(request, payment_id):
     try:
         payment = Payment.objects.get(id=payment_id)
     except Payment.DoesNotExist:
-        return JsonResponse({'error': 'not found'}, status=404)
+        return render(request, "payments/payment_status.html", {"not_found": True}, status=404)
 
-    return JsonResponse({
-        'payment_id': str(payment.id),
-        'provider': payment.provider,
-        'amount': float(payment.amount),
-        'currency': payment.currency,
-        'status': payment.status,
-        'result_code': payment.result_code,
-        'result_desc': payment.result_desc,
-        'created_at': payment.created_at.isoformat(),
-        'updated_at': payment.updated_at.isoformat(),
-    })
+    return render(request, "payments/payment_status.html", {"payment": payment})

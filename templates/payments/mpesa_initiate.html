@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}M-Pesa STK · Django POS Payments{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">M-Pesa STK Push</h1>
+<p class="text-gray-600 mb-6">Enter amount and phone number to initiate an STK push.</p>
+
+{% if error %}
+  <div class="mb-4 p-3 rounded border border-red-300 bg-red-50 text-red-800">{{ error }}</div>
+{% endif %}
+
+<form method="post" class="space-y-4 bg-white p-6 border rounded max-w-md">
+  {% csrf_token %}
+  <div>
+    <label class="block text-sm mb-1" for="amount">Amount (KES)</label>
+    <input type="number" step="0.01" min="1" id="amount" name="amount" required class="w-full border rounded px-3 py-2">
+  </div>
+  <div>
+    <label class="block text-sm mb-1" for="phone">Phone (MSISDN e.g., 2547XXXXXXXX)</label>
+    <input type="tel" id="phone" name="phone" required class="w-full border rounded px-3 py-2" placeholder="2547XXXXXXXX">
+  </div>
+  <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Initiate STK Push</button>
+</form>
+
+{% if result %}
+  <div class="mt-6 p-4 border rounded bg-white">
+    <h2 class="font-medium mb-2">Result</h2>
+    <pre class="text-sm overflow-auto">{{ result|safe }}</pre>
+  </div>
+{% endif %}
+{% endblock %}

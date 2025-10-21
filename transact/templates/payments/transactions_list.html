@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transactions</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }
+    h1 { margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; }
+    th { background: #f3f4f6; }
+    tr:nth-child(even) { background: #fafafa; }
+    .status { font-weight: 600; }
+    .pill { padding: 2px 8px; border-radius: 999px; display: inline-block; font-size: 12px; }
+    .pill-success { background: #d1fae5; color: #065f46; }
+    .pill-pending { background: #fef3c7; color: #92400e; }
+    .pill-failed  { background: #fee2e2; color: #991b1b; }
+    .actions { margin: 16px 0; }
+    a.button { display: inline-block; background: #2563eb; color: white; padding: 8px 12px; border-radius: 6px; text-decoration: none; }
+    a.button:hover { background: #1d4ed8; }
+    .muted { color: #6b7280; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Transactions</h1>
+  <div class="actions">
+    <a href="/payments/stk_push/" class="button">Initiate Test STK Push</a>
+  </div>
+  {% if transactions %}
+    <table>
+      <thead>
+        <tr>
+          <th>Phone</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th>Checkout Request ID</th>
+          <th>MPESA Receipt</th>
+          <th>Created</th>
+          <th>Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transactions %}
+        <tr>
+          <td>{{ t.phone_number }}</td>
+          <td>{{ t.amount }}</td>
+          <td>
+            {% if t.status == 'SUCCESS' %}
+              <span class="pill pill-success">{{ t.status }}</span>
+            {% elif t.status == 'FAILED' %}
+              <span class="pill pill-failed">{{ t.status }}</span>
+            {% else %}
+              <span class="pill pill-pending">{{ t.status }}</span>
+            {% endif %}
+          </td>
+          <td>{{ t.checkout_request_id|default:'—' }}</td>
+          <td>{{ t.mpesa_receipt_number|default:'—' }}</td>
+          <td>{{ t.created_at }}</td>
+          <td>{{ t.updated_at }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No transactions found yet.</p>
+  {% endif %}
+</body>
+</html>

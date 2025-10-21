@@ -122,6 +122,7 @@ import json
 @csrf_exempt
 def stk_callback(request):
     data = json.loads(request.body.decode('utf-8'))
+    print("Callback data:", data)
     stk = data.get("Body", {}).get("stkCallback", {})
     result_code = stk.get("ResultCode")
     checkout_id = stk.get("CheckoutRequestID")
@@ -134,20 +135,44 @@ def stk_callback(request):
         except Transaction.DoesNotExist:
             txn = None
 
-    # Extract receipt if present
+    # Extract metadata: receipt, phone, amount if present
     receipt = None
+    phone_meta = None
+    amount_meta = None
     metadata = stk.get("CallbackMetadata", {}).get("Item", [])
     for item in metadata:
-        if item.get("Name") == "MpesaReceiptNumber":
+        name = item.get("Name")
+        if name == "MpesaReceiptNumber":
             receipt = item.get("Value")
-            break
+        elif name == "PhoneNumber":
+            phone_meta = str(item.get("Value")) if item.get("Value") is not None else None
+        elif name in ("Amount", "TransactionAmount"):
+            amount_meta = item.get("Value")
+
+    # Fallback: if no txn found by checkout_id, match latest pending by phone
+    if txn is None and phone_meta:
+        try:
+            txn = Transaction.objects.filter(phone_number=phone_meta, status='PENDING').order_by('-created_at').first()
+        except Exception:
+            txn = None
+
+    # Normalize result code comparison
+    result_ok = str(result_code) == '0'
 
     if txn:
-        if result_code == 0:
+        if result_ok:
             txn.status = 'SUCCESS'
             if receipt:
                 txn.mpesa_receipt_number = receipt
-            txn.save(update_fields=['status', 'mpesa_receipt_number', 'updated_at'])
+            # Optionally update amount from callback
+            try:
+                if amount_meta is not None:
+                    # keep as Decimal by casting via str
+                    from decimal import Decimal
+                    txn.amount = Decimal(str(amount_meta))
+            except Exception:
+                pass
+            txn.save(update_fields=['status', 'mpesa_receipt_number', 'amount', 'updated_at'])
         else:
             txn.status = 'FAILED'
             txn.save(update_fields=['status', 'updated_at'])
@@ -157,3 +182,87 @@ def stk_callback(request):
 def transactions_list(request):
     transactions = Transaction.objects.order_by('-created_at')
     return render(request, 'payments/transactions_list.html', {"transactions": transactions})
+
+def callback_test(request):
+    return HttpResponse("OK", status=200)
+
+def query_stk_status(request, txn_id):
+    try:
+        txn = Transaction.objects.get(id=txn_id)
+    except Transaction.DoesNotExist:
+        return render(request, 'payments/transactions_list.html', {
+            "transactions": Transaction.objects.order_by('-created_at'),
+            "error": f"Transaction {txn_id} not found"
+        })
+
+    if not txn.checkout_request_id:
+        return render(request, 'payments/transactions_list.html', {
+            "transactions": Transaction.objects.order_by('-created_at'),
+            "error": "Cannot query status: missing CheckoutRequestID on this transaction."
+        })
+
+    try:
+        access_token = get_access_token()
+    except Exception as e:
+        return render(request, 'payments/transactions_list.html', {
+            "transactions": Transaction.objects.order_by('-created_at'),
+            "error": "Failed to obtain MPESA access token",
+            "details": str(e),
+        })
+
+    timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    password_str = settings.MPESA_SHORTCODE + settings.MPESA_PASSKEY + timestamp
+    password = base64.b64encode(password_str.encode()).decode('utf-8')
+
+    payload = {
+        "BusinessShortCode": settings.MPESA_SHORTCODE,
+        "Password": password,
+        "Timestamp": timestamp,
+        "CheckoutRequestID": txn.checkout_request_id,
+    }
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        resp = requests.post(
+            f"{settings.MPESA_BASE_URL}/mpesa/stkpushquery/v1/query",
+            json=payload,
+            headers=headers,
+            timeout=30,
+        )
+    except Exception as e:
+        return render(request, 'payments/transactions_list.html', {
+            "transactions": Transaction.objects.order_by('-created_at'),
+            "error": "Failed to reach MPESA STK Query API",
+            "details": str(e),
+        })
+
+    body = None
+    try:
+        body = resp.json()
+    except Exception:
+        body = {"raw": resp.text}
+
+    # Heuristic: if query ResultCode == 0 then success; specific messages may vary
+    result_code = str(body.get('ResultCode')) if isinstance(body, dict) else None
+    result_desc = body.get('ResultDesc') if isinstance(body, dict) else None
+    if result_code == '0':
+        txn.status = 'SUCCESS'
+        txn.save(update_fields=['status', 'updated_at'])
+        message = "Payment confirmed SUCCESS by query."
+    elif result_code in {'1032', '2001', '1', '2'}:
+        # Common non-success codes; mark as FAILED to unblock
+        txn.status = 'FAILED'
+        txn.save(update_fields=['status', 'updated_at'])
+        message = f"Payment marked FAILED by query (code {result_code})."
+    else:
+        message = f"Query returned status code {resp.status_code}. Still pending or unknown."
+
+    return render(request, 'payments/transactions_list.html', {
+        "transactions": Transaction.objects.order_by('-created_at'),
+        "query_result": body,
+        "message": message,
+        "mpesa_status": resp.status_code,
+    })

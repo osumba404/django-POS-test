@@ -137,4 +137,5 @@ MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "")
 MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "174379")  # Sandbox default
 MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "")
 MPESA_BASE_URL = os.getenv("MPESA_BASE_URL", "https://sandbox.safaricom.co.ke")
-MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "")
+MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "https://zoie-perigynous-alease.ngrok-free.dev/payments/callback/")
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "zoie-perigynous-alease.ngrok-free.dev"]
